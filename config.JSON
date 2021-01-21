@@ -1,0 +1,16 @@
+{
+	"file": {
+		"output_name" : "A1_grade_import.csv",
+		"marmoset_tues" : "project-Assignment 1 - Tuesday lab-grades.csv",
+		"marmoset_wed" : "project-Assignment 1 - Wednesday lab-grades.csv",
+		"crowdmark_tues" : "a1_prog_tue_lab-marks.csv",
+		"crowdmark_wed" : "a1_prog_wed_lab-marks.csv",
+		"extensions" : "Extensions.csv",
+		"learn_format_export" : "ME 101 - Winter 2021_GradesExport.csv"
+	},
+	"dates": {
+		"tues_due_datetime" : "2021-1-13 21:30:59 +0000",
+		"wed_due_datetime" : "2021-1-14 21:30:59 +0000",
+		"ext_length_in_hours" : "72"
+	}
+}
