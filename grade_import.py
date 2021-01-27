@@ -10,7 +10,6 @@ configFile.close()
 lFile = open(configData["file"]["learn_format_export"], 'r')
 lReader = csv.DictReader(lFile)
 lFieldnames = lReader.fieldnames
-lFieldnames.append("due date UTC")
 learnData = list(lReader)
 lFile.close()
 
@@ -84,19 +83,21 @@ for row in marmosetData:
             print("[MARM]Late penalty of 100% applied to " + row["classAccount"] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
 
 # take highest grade from each student
-for row1 in marmosetData:
-    student = row1["classAccount"]
-    highestGrade = float(row1["total"])
-    bestSubDate = datetime.fromtimestamp(int(row1["UTC"]) / 1000, tz = timezone.utc)
-    for row2 in marmosetData:
-        if student == row2["classAccount"]:
-            row2["classAccount"] = "to be removed";
-            if highestGrade < float(row2["total"]):
-                highestGrade = float(row2["total"])
-                bestSubDate = datetime.fromtimestamp(int(row2["UTC"]) / 1000, tz = timezone.utc)
-    row1["classAccount"] = student
-    row1["total"] = highestGrade
-    row1["UTC"] = (bestSubDate - datetime(1970, 1, 1, tzinfo = timezone.utc)) / timedelta(seconds=1)
+for i in range(len(marmosetData)):
+    if marmosetData[i]["classAccount"] != "to be removed":
+        student = marmosetData[i]["classAccount"]
+        highestGrade = float(marmosetData[i]["total"])
+        highestGradeIndex = i
+        for j in range(len(marmosetData)):
+            row = marmosetData[j]
+            if student == row["classAccount"]:
+                if highestGrade < float(row["total"]):
+                    highestGrade = float(row["total"])
+                    highestGradeIndex = j
+        for k in range(len(marmosetData)):
+            row = marmosetData[k]
+            if student == row["classAccount"] and highestGradeIndex != k:
+                row["classAccount"] = "to be removed"
 marmosetData = list(filter(lambda d: d["classAccount"] != "to be removed", marmosetData))
 
 # crowdmarkData file import
@@ -165,7 +166,9 @@ for line in learnData:
 newFile = open(configData["file"]["output_name"], 'w', newline='')
 writer = csv.DictWriter(newFile, lFieldnames)
 writer.writeheader()
-writer.writerows(learnData)
+for line in learnData:
+    del line["due date UTC"]
+    writer.writerow(line)
 newFile.close()
 
 # other compiled lists written to excel for debugging
