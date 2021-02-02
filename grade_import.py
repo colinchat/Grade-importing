@@ -1,185 +1,156 @@
+# IMPORTANT NOTE:
+# don't edit any input files, excel reformats strings of integer dates to scientific
+
+import json
 import csv
 from datetime import datetime, timedelta, timezone
 
-# learn export template
-lFile = open('ME 101 - Winter 2021_GradesExport.csv', 'r')
-lReader = csv.DictReader(lFile)
-lFieldnames = lReader.fieldnames
-lFieldnames.append("due date UTC")
-learn = list(lReader)
-lFile.close()
+configFile = open('config.json', 'r')
+config = json.load(configFile)
+configFile.close()
 
-# extensions file import (single sheet unique to assignment)
-eFile = open('Extensions.csv', 'r')
-eReader = csv.DictReader(eFile)
-extensions = list(eReader)
-eFile.close()
+def listFromCSV(listOfFiles):
+    allFiles = list()
+    for file in listOfFiles:
+        with open(file, newline='') as csvFile:
+            reader = csv.DictReader(csvFile)
+            allFiles += list(reader)
+    return allFiles
+    
+def getDueDate(student):
+    for row in learnData:
+        if '#' + student == row[config["header"]["learn_ID"]]:
+            return row["temp due date"]
+    return "FAILED"
 
-# --------------original due dates (change these each assignment)---------------------
-tuesDate = datetime.strptime("2021-1-13 21:30:59 +0000", '%Y-%m-%d %H:%M:%S %z')
-wedDate = datetime.strptime("2021-1-14 21:30:59 +0000", '%Y-%m-%d %H:%M:%S %z')
-# ------------------------------------------------------------------------------------
+learnData = listFromCSV([config["file"]["learn_format_export"]])
+extensions = listFromCSV([config["file"]["extensions"]])
+marmosetData = listFromCSV([config["file"]["marmoset_tues"], config["file"]["marmoset_wed"]])
+crowdmarkData = listFromCSV([config["file"]["crowdmark_tues"], config["file"]["crowdmark_wed"]])
+
+tuesDate = datetime.strptime(config["dates"]["tues_due_datetime"], '%Y-%m-%d %H:%M:%S %z')
+wedDate = datetime.strptime(config["dates"]["wed_due_datetime"], '%Y-%m-%d %H:%M:%S %z')
 
 print("Extensions found:")
-for line in learn:
+# find due dates for all students
+for line in learnData:
     extTime = timedelta(hours = 0)
-    # check all rows in extensions.csv for each line in learn
+    # check all rows in extensions.csv for each line in learnData
     # (assume extensions.csv is unique to the assignment)
     for row in extensions:
-        if '#' + row["User ID"] == line["Username"]:
-            extTime = timedelta(hours = 72)
-            print("[SYSTEM]" + row["User ID"] + " was given an extension.")
+        if '#' + row[config["header"]["ext_ID"]] == line[config["header"]["learn_ID"]]:
+            extTime = timedelta(hours = int(config["dates"]["ext_length_in_hours"]))
+            print("[SYSTEM]" + row[config["header"]["ext_ID"]] + " was given an extension.")
     # match the lab session to due date, add any extensions if found
-    if line["ME101_chulls_pmteerts_1211_LAB"] == "242 Tuesday Lab":
-        line["due date UTC"] = tuesDate + extTime
-    elif line["ME101_chulls_pmteerts_1211_LAB"] == "241 Wednesday Lab":
-        line["due date UTC"] = wedDate + extTime
+    if line[config["header"]["learn_section"]] == "242 Tuesday Lab":
+        line["temp due date"] = tuesDate + extTime
+    elif line[config["header"]["learn_section"]] == "241 Wednesday Lab":
+        line["temp due date"] = wedDate + extTime
     else:
-        line["due date UTC"] = "ERROR: lab session not found"
-# now have list of adjusted due dates appended to learn doc in last column (after end of line indicator, so OK to import?)
+        line["temp due date"] = "ERROR: lab session not found"
+# now have list of adjusted due dates appended to learnData doc in last column (after end of line indicator, do not write to import file)
 
-# marmoset file import
-mFile1 = open('project-Assignment 1 - Tuesday lab-grades.csv', 'r')
-mReader1 = csv.DictReader(mFile1)
-mFieldnames = mReader1.fieldnames
-marmosetT = list(mReader1)
-mFile1.close()
-mFile2 = open('project-Assignment 1 - Wednesday lab-grades.csv', 'r')
-mReader2 = csv.DictReader(mFile2)
-marmosetW = list(mReader2)
-mFile2.close()
-
-marmoset = marmosetT + marmosetW
-
-def getDueDate(student):
-    for row in learn:
-        if '#' + student == row["Username"]:
-            return row["due date UTC"]
-    return "FAILED"
 print("\nLate submissions found:")
 
-newFile = open('test.csv', 'w', newline='')
-writer = csv.DictWriter(newFile, mFieldnames)
-writer.writeheader()
-writer.writerows(marmoset)
-newFile.close()
-
-# calculate adjusted marmoset grades
-for row in marmoset:
-    subDate = datetime.fromtimestamp(int(row["UTC"]) / 1000, tz = timezone.utc)
-    dueDate = getDueDate(row["classAccount"])
-    if getDueDate(row["classAccount"]) != "FAILED" and subDate > dueDate:
+# calculate adjusted marmosetData grades
+for row in marmosetData:
+    subDate = datetime.fromtimestamp(int(row[config["header"]["marm_date"]]) / 1000, tz = timezone.utc)
+    dueDate = getDueDate(row[config["header"]["marm_ID"]])
+    if getDueDate(row[config["header"]["marm_ID"]]) != "FAILED" and subDate > dueDate:
         if subDate - dueDate < timedelta(hours = 24):
-            row["total"] = round(float(row["total"]) * 0.8, 3)
-            print("[MARM]Late penalty of 20% applied to " + row["classAccount"] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
+            row[config["header"]["marm_grade"]] = round(float(row[config["header"]["marm_grade"]]) * 0.8, 3)
+            print("[MARM]Late penalty of 20% applied to " + row[config["header"]["marm_ID"]] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
         elif subDate - dueDate < timedelta(hours = 48):
-            row["total"] = round(float(row["total"]) * 0.6, 3)
-            print("[MARM]Late penalty of 40% applied to " + row["classAccount"] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
+            row[config["header"]["marm_grade"]] = round(float(row[config["header"]["marm_grade"]]) * 0.6, 3)
+            print("[MARM]Late penalty of 40% applied to " + row[config["header"]["marm_ID"]] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
         else:
-            row["total"] = 0
-            print("[MARM]Late penalty of 100% applied to " + row["classAccount"] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
+            row[config["header"]["marm_grade"]] = 0
+            print("[MARM]Late penalty of 100% applied to " + row[config["header"]["marm_ID"]] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
 
 # take highest grade from each student
-for row1 in marmoset:
-    student = row1["classAccount"]
-    highestGrade = float(row1["total"])
-    bestSubDate = datetime.fromtimestamp(int(row1["UTC"]) / 1000, tz = timezone.utc)
-    for row2 in marmoset:
-        if student == row2["classAccount"]:
-            row2["classAccount"] = "to be removed";
-            if highestGrade < float(row2["total"]):
-                highestGrade = float(row2["total"])
-                bestSubDate = datetime.fromtimestamp(int(row2["UTC"]) / 1000, tz = timezone.utc)
-    row1["classAccount"] = student
-    row1["total"] = highestGrade
-    row1["UTC"] = (bestSubDate - datetime(1970, 1, 1, tzinfo = timezone.utc)) / timedelta(seconds=1)
-marmoset = list(filter(lambda d: d["classAccount"] != "to be removed", marmoset))
+for i in range(len(marmosetData)):
+    if marmosetData[i][config["header"]["marm_ID"]] != "to be removed":
+        student = marmosetData[i][config["header"]["marm_ID"]]
+        highestGrade = float(marmosetData[i][config["header"]["marm_grade"]])
+        highestGradeIndex = i
+        for j in range(len(marmosetData)):
+            row = marmosetData[j]
+            if student == row[config["header"]["marm_ID"]]:
+                if highestGrade < float(row[config["header"]["marm_grade"]]):
+                    highestGrade = float(row[config["header"]["marm_grade"]])
+                    highestGradeIndex = j
+        for k in range(len(marmosetData)):
+            row = marmosetData[k]
+            if student == row[config["header"]["marm_ID"]] and highestGradeIndex != k:
+                row[config["header"]["marm_ID"]] = "to be removed"
+marmosetData = list(filter(lambda d: d[config["header"]["marm_ID"]] != "to be removed", marmosetData))
 
-# crowdmark file import
-cFile1 = open('a1_prog_tue_lab-marks.csv', 'r')
-cReader1 = csv.DictReader(cFile1)
-cFieldnames = cReader1.fieldnames
-crowdmarkT = list(cReader1)
-cFile1.close()
-cFile2 = open('a1_prog_wed_lab-marks.csv', 'r')
-cReader2 = csv.DictReader(cFile2)
-crowdmarkW = list(cReader2)
-cFile2.close()
-
-crowdmark = crowdmarkT + crowdmarkW
-
-# calculate adjusted crowdmark grades
-for row in crowdmark:
-    student = row["Email"].split("@")[0]
-    if row["Submitted At"]:
-        subDate = datetime.strptime(row["Submitted At"], '%Y-%m-%d %H:%M:%S %Z')
+# calculate adjusted crowdmarkData grades
+for row in crowdmarkData:
+    student = row[config["header"]["crowd_ID"]].split("@")[0]
+    if row[config["header"]["crowd_date"]]:
+        subDate = datetime.strptime(row[config["header"]["crowd_date"]], '%Y-%m-%d %H:%M:%S %Z')
         subDate = subDate.replace(tzinfo=timezone.utc)
     else:
-        print("[CROWD]Student did not submit: " + row["Email"].split("@")[0])
+        print("[CROWD]Student did not submit: " + row[config["header"]["crowd_ID"]].split("@")[0])
         continue
     dueDate = getDueDate(student)
     if getDueDate(student) != "FAILED" and subDate > dueDate:
         if subDate - dueDate < timedelta(hours = 24):
-            row["Total After Penalty"] = round(float(row["Total"]) * 0.8, 3)
-            row["Custom Penalty"] = "20"
-            print("[CROWD]Late penalty of 20% applied to " + row["Email"].split("@")[0] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
+            row[config["header"]["crowd_grade"]] = round(float(row["Total"]) * 0.8, 3)
+            row[config["header"]["crowd_penalty"]] = "20"
+            print("[CROWD]Late penalty of 20% applied to " + row["Total"].split("@")[0] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
         elif subDate - dueDate < timedelta(hours = 48):
-            row["Total After Penalty"] = round(float(row["Total"]) * 0.6, 3)
-            row["Custom Penalty"] = "40"
-            print("[CROWD]Late penalty of 40% applied to " + row["Email"].split("@")[0] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
+            row[config["header"]["crowd_grade"]] = round(float(row["Total"]) * 0.6, 3)
+            row[config["header"]["crowd_penalty"]] = "40"
+            print("[CROWD]Late penalty of 40% applied to " + row[config["header"]["crowd_ID"]].split("@")[0] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
         else:
-            row["Total After Penalty"] = 0
-            row["Custom Penalty"] = "100"
-            print("[CROWD]Late penalty of 100% applied to " + row["Email"].split("@")[0] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
+            row[config["header"]["crowd_grade"]] = 0
+            row[config["header"]["crowd_penalty"]] = "100"
+            print("[CROWD]Late penalty of 100% applied to " + row[config["header"]["crowd_ID"]].split("@")[0] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
 print("\nErrors found: ")
 
-# combine marks from marmoset and crowdmark lists
-for line in learn:
-    student = line["Username"]
+# combine marks from marmosetData and crowdmarkData lists
+for line in learnData:
+    student = line[config["header"]["learn_ID"]]
     mMark = 1000; 
     cMark = 1000;
     # check both lists
-    for row in marmoset:
-        if '#' + row["classAccount"] == student:
-            mMark = row["total"]
-    for row in crowdmark:
-        if '#' + row["Email"].split("@")[0] == student and row["Total After Penalty"]: # crowdmark leaves blank space if not graded
-            cMark = row["Total After Penalty"] 
+    for row in marmosetData:
+        if '#' + row[config["header"]["marm_ID"]] == student:
+            mMark = row[config["header"]["marm_grade"]]
+    for row in crowdmarkData:
+        if '#' + row[config["header"]["crowd_ID"]].split("@")[0] == student and row[config["header"]["crowd_grade"]]: # crowdmarkData leaves blank space if not graded
+            cMark = row[config["header"]["crowd_grade"]] 
     # check that marks were found before recording sum
     if mMark == 1000 and cMark == 1000:
         print("[SYSTEM]Missing all info for " + student)
     elif mMark == 1000:
-        line["Assignment 1 Points Grade <Numeric MaxPoints:13 Weight:10 Category:Assignments CategoryWeight:10>"] = "N/A"
+        line[config["header"]["learn_grade"]] = "N/A"
         print("[MARM] missing info for " + student)
     elif cMark == 1000:
-        line["Assignment 1 Points Grade <Numeric MaxPoints:13 Weight:10 Category:Assignments CategoryWeight:10>"] = "N/A"
+        line[config["header"]["learn_grade"]] = "N/A"
         print("[CROWD] missing info for " + student)
     else:
-        line["Assignment 1 Points Grade <Numeric MaxPoints:13 Weight:10 Category:Assignments CategoryWeight:10>"] = float(mMark) + float(cMark)
+        line[config["header"]["learn_grade"]] = float(mMark) + float(cMark)
 
-# write final data to new file
-newFile = open('grade_import.csv', 'w', newline='')
-writer = csv.DictWriter(newFile, lFieldnames)
-writer.writeheader()
-writer.writerows(learn)
-newFile.close()
+# write all data to formatted output file
+for line in learnData:
+    del line["temp due date"]
+with open(config["file"]["output_name"], 'w', newline='') as newFile:
+    writer = csv.DictWriter(newFile, learnData[0].keys())
+    writer.writeheader()
+    writer.writerows(learnData)
 
-# other compiled lists written to excel for debugging
-newFile = open('marmoset_compiled.csv', 'w', newline='')
-writer = csv.DictWriter(newFile, mFieldnames)
-writer.writeheader()
-writer.writerows(marmoset)
-newFile.close()
-
-newFile = open('crowdmark_compiled.csv', 'w', newline='')
-writer = csv.DictWriter(newFile, cFieldnames)
-writer.writeheader()
-writer.writerows(crowdmark)
-newFile.close()
-
-newFile = open('learn_compiled.csv', 'w', newline='')
-writer = csv.DictWriter(newFile, lFieldnames)
-writer.writeheader()
-writer.writerows(learn)
-newFile.close()
+# TEST CASE 1
+baselineOutput = listFromCSV(["A1_grade_import_BASELINE.csv"])
+currOutput = listFromCSV([config["file"]["output_name"]])
+if len(baselineOutput) != len(currOutput):
+    print("TEST_1 FAILED - different length lists")
+else:
+    for base, curr in zip(baselineOutput, currOutput):
+        if base != curr:
+            print("TEST_1 FAILED - line different")
+            print("   current is " + curr[config["header"]["learn_ID"]] + " vs " + base[config["header"]["learn_ID"]])
+            print("   current is " + curr[config["header"]["learn_grade"]] + " vs " + base[config["header"]["learn_grade"]])
 
