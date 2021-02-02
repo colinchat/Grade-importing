@@ -17,8 +17,8 @@ def listFromCSV(listOfFiles):
             allFiles += list(reader)
     return allFiles
     
-def getDueDate(student):
-    for row in learnData:
+def getDueDate(student, data):
+    for row in data:
         if '#' + student == row[config["header"]["learn_ID"]]:
             return row["temp due date"]
     return "FAILED"
@@ -55,8 +55,8 @@ print("\nLate submissions found:")
 # calculate adjusted marmosetData grades
 for row in marmosetData:
     subDate = datetime.fromtimestamp(int(row[config["header"]["marm_date"]]) / 1000, tz = timezone.utc)
-    dueDate = getDueDate(row[config["header"]["marm_ID"]])
-    if getDueDate(row[config["header"]["marm_ID"]]) != "FAILED" and subDate > dueDate:
+    dueDate = getDueDate(row[config["header"]["marm_ID"]], learnData)
+    if getDueDate(row[config["header"]["marm_ID"]], learnData) != "FAILED" and subDate > dueDate:
         if subDate - dueDate < timedelta(hours = 24):
             row[config["header"]["marm_grade"]] = round(float(row[config["header"]["marm_grade"]]) * 0.8, 3)
             print("[MARM]Late penalty of 20% applied to " + row[config["header"]["marm_ID"]] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
@@ -68,20 +68,20 @@ for row in marmosetData:
             print("[MARM]Late penalty of 100% applied to " + row[config["header"]["marm_ID"]] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
 
 # take highest grade from each student
-for i in range(len(marmosetData)):
-    if marmosetData[i][config["header"]["marm_ID"]] != "to be removed":
-        student = marmosetData[i][config["header"]["marm_ID"]]
-        highestGrade = float(marmosetData[i][config["header"]["marm_grade"]])
-        highestGradeIndex = i
-        for j in range(len(marmosetData)):
-            row = marmosetData[j]
+for index in range(len(marmosetData)):
+    if marmosetData[index][config["header"]["marm_ID"]] != "to be removed":
+        student = marmosetData[index][config["header"]["marm_ID"]]
+        highestGrade = float(marmosetData[index][config["header"]["marm_grade"]])
+        highestGradeIndex = index
+        for count in range(len(marmosetData)):
+            row = marmosetData[count]
             if student == row[config["header"]["marm_ID"]]:
                 if highestGrade < float(row[config["header"]["marm_grade"]]):
                     highestGrade = float(row[config["header"]["marm_grade"]])
-                    highestGradeIndex = j
-        for k in range(len(marmosetData)):
-            row = marmosetData[k]
-            if student == row[config["header"]["marm_ID"]] and highestGradeIndex != k:
+                    highestGradeIndex = count
+        for count in range(len(marmosetData)):
+            row = marmosetData[count]
+            if student == row[config["header"]["marm_ID"]] and highestGradeIndex != count:
                 row[config["header"]["marm_ID"]] = "to be removed"
 marmosetData = list(filter(lambda d: d[config["header"]["marm_ID"]] != "to be removed", marmosetData))
 
@@ -94,8 +94,8 @@ for row in crowdmarkData:
     else:
         print("[CROWD]Student did not submit: " + row[config["header"]["crowd_ID"]].split("@")[0])
         continue
-    dueDate = getDueDate(student)
-    if getDueDate(student) != "FAILED" and subDate > dueDate:
+    dueDate = getDueDate(student, learnData)
+    if getDueDate(student, learnData) != "FAILED" and subDate > dueDate:
         if subDate - dueDate < timedelta(hours = 24):
             row[config["header"]["crowd_grade"]] = round(float(row["Total"]) * 0.8, 3)
             row[config["header"]["crowd_penalty"]] = "20"
