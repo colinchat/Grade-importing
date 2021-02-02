@@ -8,6 +8,19 @@
 		"extensions" : "Extensions.csv",
 		"learn_format_export" : "ME 101 - Winter 2021_GradesExport.csv"
 	},
+	"header": {
+		"learn_section" : "ME101_chulls_pmteerts_1211_LAB",
+		"learn_ID" : "Username",
+		"learn_grade" : "Assignment 1 Points Grade <Numeric MaxPoints:13 Weight:10 Category:Assignments CategoryWeight:10>",
+		"ext_ID" : "User ID",
+		"marm_ID" : "classAccount",
+		"marm_grade" : "total",
+		"marm_date" : "UTC",
+		"crowd_ID" : "Email",
+		"crowd_grade" : "Total After Penalty",
+		"crowd_penalty" : "Custom Penalty",
+		"crowd_date" : "Submitted At"
+	},
 	"dates": {
 		"tues_due_datetime" : "2021-1-13 21:30:59 +0000",
 		"wed_due_datetime" : "2021-1-14 21:30:59 +0000",
