@@ -17,7 +17,7 @@
 		"marm_grade" : "total",
 		"marm_date" : "UTC",
 		"crowd_ID" : "Email",
-		"crowd_grade" : "Total After Penalty",
+		"crowd_grade" : "Total",
 		"crowd_penalty" : "Custom Penalty",
 		"crowd_date" : "Submitted At"
 	},

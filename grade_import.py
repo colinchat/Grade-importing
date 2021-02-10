@@ -1,6 +1,13 @@
-# IMPORTANT NOTE:
-# don't edit any input files, excel reformats strings of integer dates to scientific
+# IMPORTANT NOTE: don't edit any input files, excel reformats strings of integer dates to scientific
+"""NOTES:
+class could be generalized more, to accompany any sort of file with student IDs and information tied to them
+    need a way to keep track of and omit certain headers (grade and dates), use class for extension list
 
+need to format student IDs and dates for more clear coding
+need to handle blank entries (remove them?)
+
+maybe taking data from the grade exports is better than reformatting the grade exports...
+"""
 import json
 import csv
 from datetime import datetime, timedelta, timezone
@@ -9,6 +16,146 @@ configFile = open('config.json', 'r')
 config = json.load(configFile)
 configFile.close()
 
+class gradeFile:
+    """Container for any files containing student grades"""
+    def __init__(self, ID_header_string, grade_header_string, date_header_string, file_name = None):
+        if file_name:
+            with open(file_name, newline='') as csvFile:
+                reader = csv.DictReader(csvFile)
+                self.data = list(reader)
+        else:
+            self.data = list()
+        self.strID = ID_header_string
+        self.strGrade = grade_header_string
+        self.strSubDate = date_header_string
+
+    def __add__(self, other):
+        if self.strID == other.strID and self.strGrade == other.strGrade and self.strSubDate == other.strSubDate:
+            temp = gradeFile(self.strID, self.strGrade, self.strSubDate)
+            temp.data = self.data + other.data
+            return temp
+        else:
+            return bool(false) # error/exception implementation?
+
+    def formatSubDates(self, old_strp_format = None):
+        if old_strp_format == None:
+            try:
+                for row in self.data:
+                    temp = datetime.fromtimestamp(int(row[self.strSubDate]) / 1000, tz = timezone.utc)
+                    row[self.strSubDate] = temp
+            except OSError:
+                for row in self.data:
+                    temp = datetime.fromtimestamp(int(row[self.strSubDate]), tz = timezone.utc)
+                    row[self.strSubDate] = temp
+        else:
+            for row in self.data:
+                if row[self.strSubDate]:
+                    temp = datetime.strptime(row[self.strSubDate], old_strp_format)
+                    temp = temp.replace(tzinfo=timezone.utc)
+                    row[self.strSubDate] = temp
+        
+    def assignDueDate(self, due_date):
+        for row in self.data:
+            row['dueDate'] = due_date
+    
+    def conditionalExtension(self, condition, except_list_of_dict, extension_hours):
+        extensionLength = timedelta(hours = int(extension_hours))
+        for dRow in self.data:
+            for eRow in except_list_of_dict:
+                if condition(dRow, eRow):
+                    newDate = dRow['dueDate'] + extensionLength
+                    dRow['dueDate'] = newDate
+
+    def conditionalNewDueDate(self, condition, except_list_of_dict, new_due_date_header, date_format):
+        for dRow in self.data:
+            for eRow in except_list_of_dict:
+                if condition(dRow, eRow):
+                    # timezone picked base on system timezone since importing naive date, should explicitly define it instead
+                    newDate = datetime.strptime(eRow[new_due_date_header], date_format)
+                    newDate = newDate.astimezone(timezone.utc)
+                    dRow['dueDate'] = newDate
+    
+    def applyLatePenalty(self, multiplier, min_hours_late = 0, max_hours_late = 1000):
+        for row in self.data:
+            if row[self.strSubDate]:
+                delta = row[self.strSubDate] - row['dueDate']
+                if delta > timedelta(hours = min_hours_late) and delta <= timedelta(hours = max_hours_late):
+                    row[self.strGrade] = float(row[self.strGrade]) * multiplier
+                    print("penalty applied to " + row[self.strID])
+                    print(str(row[self.strGrade]) + '*' + str(multiplier) + '=' + str(row[self.strGrade]) + '\n')
+                else:
+                    row[self.strGrade] = float(row[self.strGrade])
+        
+    def takeHighestNewGrade(self):
+        for row in self.data:
+            if row[self.strID] != 'remove_flag':
+                studentID = row[self.strID]
+                highIndex = 0
+                highGrade = 0
+                allIndex = list()
+                for count in range(len(self.data)):
+                    if self.data[count][self.strID] == studentID:
+                        allIndex.append(count)
+                        if float(self.data[count][self.strGrade]) >=  highGrade:
+                            highIndex = count
+                            highGrade = float(self.data[count][self.strGrade])
+                for num in allIndex:
+                    if num != highIndex:
+                        self.data[num][self.strID] = 'remove_flag'
+        self.data = list(filter(lambda row: row[self.strID] != 'remove_flag', self.data))
+
+    def addToGradeImport(self, other_grade_file):
+        for row_self in self.data:
+            for row_dest in other_grade_file.data:
+                if '#' + row_self[self.strID] in row_dest[other_grade_file.strID] or row_dest[other_grade_file.strID] in '#' + row_self[self.strID]:
+                    if row_self[self.strGrade]:
+                        if row_dest[other_grade_file.strGrade]:
+                            row_dest[other_grade_file.strGrade] = float(row_dest[other_grade_file.strGrade]) + float(row_self[self.strGrade])
+                        else:
+                            row_dest[other_grade_file.strGrade] = float(row_self[self.strGrade])
+
+marmTues = gradeFile(config["header"]["marm_ID"], config["header"]["marm_grade"], config["header"]["marm_date"], config["file"]["marmoset_tues"])
+marmWedn = gradeFile(config["header"]["marm_ID"], config["header"]["marm_grade"], config["header"]["marm_date"], config["file"]["marmoset_wed"])
+crowdTue = gradeFile(config["header"]["crowd_ID"], config["header"]["crowd_grade"], config["header"]["crowd_date"], config["file"]["crowdmark_tues"])
+crowdWed = gradeFile(config["header"]["crowd_ID"], config["header"]["crowd_grade"], config["header"]["crowd_date"], config["file"]["crowdmark_wed"])
+learnExp = gradeFile(config["header"]["learn_ID"], config["header"]["learn_grade"], 'N/A', config["file"]["learn_format_export"])
+with open(config["file"]["extensions"]) as extFile:
+    reader = csv.DictReader(extFile)
+    extData = list(reader)
+
+tuesDate = datetime.strptime(config["dates"]["tues_due_datetime"], '%Y-%m-%d %H:%M:%S %z')
+wednDate = datetime.strptime(config["dates"]["wed_due_datetime"], '%Y-%m-%d %H:%M:%S %z')
+
+marmData = marmTues + marmWedn
+marmData.formatSubDates()
+marmData.assignDueDate(tuesDate)
+marmData.conditionalExtension(lambda m, e: "#" + m["classAccount"] == e["Username"] and e["ME101_chulls_pmteerts_1211_LAB"] == "241 Wednesday Lab", learnExp.data, 24)
+marmData.conditionalNewDueDate(lambda m, e: m[marmData.strID] == e["User ID"], extData, '+72 hours', '%Y-%m-%d %H:%M')
+marmData.applyLatePenalty(0.8, 0, 24)
+marmData.applyLatePenalty(0.6, 24, 48)
+marmData.applyLatePenalty(0, 48)
+marmData.takeHighestNewGrade()
+marmData.addToGradeImport(learnExp)
+
+crowdTue.formatSubDates('%Y-%m-%d %H:%M:%S %Z')
+crowdTue.assignDueDate(tuesDate)
+crowdTue.applyLatePenalty(0.8, 0, 24)
+crowdTue.applyLatePenalty(0.6, 24, 48)
+crowdTue.applyLatePenalty(0, 48)
+crowdTue.addToGradeImport(learnExp)
+
+crowdWed.formatSubDates('%Y-%m-%d %H:%M:%S %Z')
+crowdWed.assignDueDate(wednDate)
+crowdWed.applyLatePenalty(0.8, 0, 24)
+crowdWed.applyLatePenalty(0.6, 24, 48)
+crowdWed.applyLatePenalty(0, 48)
+crowdWed.addToGradeImport(learnExp)
+
+with open(config["file"]["output_name"], 'w', newline='') as newFile:
+    writer = csv.DictWriter(newFile, learnExp.data[0].keys())
+    writer.writeheader()
+    writer.writerows(learnExp.data)
+
 def listFromCSV(listOfFiles):
     allFiles = list()
     for file in listOfFiles:
@@ -16,131 +163,6 @@ def listFromCSV(listOfFiles):
             reader = csv.DictReader(csvFile)
             allFiles += list(reader)
     return allFiles
-    
-def getDueDate(student, data):
-    for row in data:
-        if '#' + student == row[config["header"]["learn_ID"]]:
-            return row["temp due date"]
-    return "FAILED"
-
-learnData = listFromCSV([config["file"]["learn_format_export"]])
-extensions = listFromCSV([config["file"]["extensions"]])
-marmosetData = listFromCSV([config["file"]["marmoset_tues"], config["file"]["marmoset_wed"]])
-crowdmarkData = listFromCSV([config["file"]["crowdmark_tues"], config["file"]["crowdmark_wed"]])
-
-tuesDate = datetime.strptime(config["dates"]["tues_due_datetime"], '%Y-%m-%d %H:%M:%S %z')
-wedDate = datetime.strptime(config["dates"]["wed_due_datetime"], '%Y-%m-%d %H:%M:%S %z')
-
-print("Extensions found:")
-# find due dates for all students
-for line in learnData:
-    extTime = timedelta(hours = 0)
-    # check all rows in extensions.csv for each line in learnData
-    # (assume extensions.csv is unique to the assignment)
-    for row in extensions:
-        if '#' + row[config["header"]["ext_ID"]] == line[config["header"]["learn_ID"]]:
-            extTime = timedelta(hours = int(config["dates"]["ext_length_in_hours"]))
-            print("[SYSTEM]" + row[config["header"]["ext_ID"]] + " was given an extension.")
-    # match the lab session to due date, add any extensions if found
-    if line[config["header"]["learn_section"]] == "242 Tuesday Lab":
-        line["temp due date"] = tuesDate + extTime
-    elif line[config["header"]["learn_section"]] == "241 Wednesday Lab":
-        line["temp due date"] = wedDate + extTime
-    else:
-        line["temp due date"] = "ERROR: lab session not found"
-# now have list of adjusted due dates appended to learnData doc in last column (after end of line indicator, do not write to import file)
-
-print("\nLate submissions found:")
-
-# calculate adjusted marmosetData grades
-for row in marmosetData:
-    subDate = datetime.fromtimestamp(int(row[config["header"]["marm_date"]]) / 1000, tz = timezone.utc)
-    dueDate = getDueDate(row[config["header"]["marm_ID"]], learnData)
-    if getDueDate(row[config["header"]["marm_ID"]], learnData) != "FAILED" and subDate > dueDate:
-        if subDate - dueDate < timedelta(hours = 24):
-            row[config["header"]["marm_grade"]] = round(float(row[config["header"]["marm_grade"]]) * 0.8, 3)
-            print("[MARM]Late penalty of 20% applied to " + row[config["header"]["marm_ID"]] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
-        elif subDate - dueDate < timedelta(hours = 48):
-            row[config["header"]["marm_grade"]] = round(float(row[config["header"]["marm_grade"]]) * 0.6, 3)
-            print("[MARM]Late penalty of 40% applied to " + row[config["header"]["marm_ID"]] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
-        else:
-            row[config["header"]["marm_grade"]] = 0
-            print("[MARM]Late penalty of 100% applied to " + row[config["header"]["marm_ID"]] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
-
-# take highest grade from each student
-for index in range(len(marmosetData)):
-    if marmosetData[index][config["header"]["marm_ID"]] != "to be removed":
-        student = marmosetData[index][config["header"]["marm_ID"]]
-        highestGrade = float(marmosetData[index][config["header"]["marm_grade"]])
-        highestGradeIndex = index
-        for count in range(len(marmosetData)):
-            row = marmosetData[count]
-            if student == row[config["header"]["marm_ID"]]:
-                if highestGrade < float(row[config["header"]["marm_grade"]]):
-                    highestGrade = float(row[config["header"]["marm_grade"]])
-                    highestGradeIndex = count
-        for count in range(len(marmosetData)):
-            row = marmosetData[count]
-            if student == row[config["header"]["marm_ID"]] and highestGradeIndex != count:
-                row[config["header"]["marm_ID"]] = "to be removed"
-marmosetData = list(filter(lambda d: d[config["header"]["marm_ID"]] != "to be removed", marmosetData))
-
-# calculate adjusted crowdmarkData grades
-for row in crowdmarkData:
-    student = row[config["header"]["crowd_ID"]].split("@")[0]
-    if row[config["header"]["crowd_date"]]:
-        subDate = datetime.strptime(row[config["header"]["crowd_date"]], '%Y-%m-%d %H:%M:%S %Z')
-        subDate = subDate.replace(tzinfo=timezone.utc)
-    else:
-        print("[CROWD]Student did not submit: " + row[config["header"]["crowd_ID"]].split("@")[0])
-        continue
-    dueDate = getDueDate(student, learnData)
-    if getDueDate(student, learnData) != "FAILED" and subDate > dueDate:
-        if subDate - dueDate < timedelta(hours = 24):
-            row[config["header"]["crowd_grade"]] = round(float(row["Total"]) * 0.8, 3)
-            row[config["header"]["crowd_penalty"]] = "20"
-            print("[CROWD]Late penalty of 20% applied to " + row["Total"].split("@")[0] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
-        elif subDate - dueDate < timedelta(hours = 48):
-            row[config["header"]["crowd_grade"]] = round(float(row["Total"]) * 0.6, 3)
-            row[config["header"]["crowd_penalty"]] = "40"
-            print("[CROWD]Late penalty of 40% applied to " + row[config["header"]["crowd_ID"]].split("@")[0] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
-        else:
-            row[config["header"]["crowd_grade"]] = 0
-            row[config["header"]["crowd_penalty"]] = "100"
-            print("[CROWD]Late penalty of 100% applied to " + row[config["header"]["crowd_ID"]].split("@")[0] + ":\n   submitted on  ", subDate, "\n   with due date ", dueDate)
-print("\nErrors found: ")
-
-# combine marks from marmosetData and crowdmarkData lists
-for line in learnData:
-    student = line[config["header"]["learn_ID"]]
-    mMark = 1000; 
-    cMark = 1000;
-    # check both lists
-    for row in marmosetData:
-        if '#' + row[config["header"]["marm_ID"]] == student:
-            mMark = row[config["header"]["marm_grade"]]
-    for row in crowdmarkData:
-        if '#' + row[config["header"]["crowd_ID"]].split("@")[0] == student and row[config["header"]["crowd_grade"]]: # crowdmarkData leaves blank space if not graded
-            cMark = row[config["header"]["crowd_grade"]] 
-    # check that marks were found before recording sum
-    if mMark == 1000 and cMark == 1000:
-        print("[SYSTEM]Missing all info for " + student)
-    elif mMark == 1000:
-        line[config["header"]["learn_grade"]] = "N/A"
-        print("[MARM] missing info for " + student)
-    elif cMark == 1000:
-        line[config["header"]["learn_grade"]] = "N/A"
-        print("[CROWD] missing info for " + student)
-    else:
-        line[config["header"]["learn_grade"]] = float(mMark) + float(cMark)
-
-# write all data to formatted output file
-for line in learnData:
-    del line["temp due date"]
-with open(config["file"]["output_name"], 'w', newline='') as newFile:
-    writer = csv.DictWriter(newFile, learnData[0].keys())
-    writer.writeheader()
-    writer.writerows(learnData)
 
 # TEST CASE 1
 baselineOutput = listFromCSV(["A1_grade_import_BASELINE.csv"])
