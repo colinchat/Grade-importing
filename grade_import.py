@@ -7,7 +7,10 @@ need to format student IDs and dates for more clear coding
 need to handle blank entries (remove them?)
 
 maybe taking data from the grade exports is better than reformatting the grade exports...
+
+maybe do more with excel manually (i.e. Extensions.csv) and make program simpler? <-- no as this would make it less generalizable
 """
+
 import json
 import csv
 from datetime import datetime, timedelta, timezone
@@ -74,15 +77,17 @@ class gradeFile:
                     newDate = datetime.strptime(eRow[new_due_date_header], date_format)
                     newDate = newDate.astimezone(timezone.utc)
                     dRow['dueDate'] = newDate
+                    print("extension given to " + dRow[self.strID])
     
     def applyLatePenalty(self, multiplier, min_hours_late = 0, max_hours_late = 1000):
         for row in self.data:
             if row[self.strSubDate]:
                 delta = row[self.strSubDate] - row['dueDate']
                 if delta > timedelta(hours = min_hours_late) and delta <= timedelta(hours = max_hours_late):
-                    row[self.strGrade] = float(row[self.strGrade]) * multiplier
                     print("penalty applied to " + row[self.strID])
-                    print(str(row[self.strGrade]) + '*' + str(multiplier) + '=' + str(row[self.strGrade]) + '\n')
+                    print(delta)
+                    print(str(row[self.strGrade]) + '*' + str(multiplier) + '=' + str(float(row[self.strGrade]) * multiplier) + '\n')
+                    row[self.strGrade] = float(row[self.strGrade]) * multiplier
                 else:
                     row[self.strGrade] = float(row[self.strGrade])
         
@@ -126,6 +131,7 @@ with open(config["file"]["extensions"]) as extFile:
 tuesDate = datetime.strptime(config["dates"]["tues_due_datetime"], '%Y-%m-%d %H:%M:%S %z')
 wednDate = datetime.strptime(config["dates"]["wed_due_datetime"], '%Y-%m-%d %H:%M:%S %z')
 
+print("Marmoset: ")
 marmData = marmTues + marmWedn
 marmData.formatSubDates()
 marmData.assignDueDate(tuesDate)
@@ -137,8 +143,10 @@ marmData.applyLatePenalty(0, 48)
 marmData.takeHighestNewGrade()
 marmData.addToGradeImport(learnExp)
 
+print("Crowdmark: ")
 crowdTue.formatSubDates('%Y-%m-%d %H:%M:%S %Z')
 crowdTue.assignDueDate(tuesDate)
+crowdTue.conditionalNewDueDate(lambda m, e: m[crowdTue.strID] == e["User ID"] + '@uwaterloo.ca', extData, '+72 hours', '%Y-%m-%d %H:%M')
 crowdTue.applyLatePenalty(0.8, 0, 24)
 crowdTue.applyLatePenalty(0.6, 24, 48)
 crowdTue.applyLatePenalty(0, 48)
@@ -146,6 +154,7 @@ crowdTue.addToGradeImport(learnExp)
 
 crowdWed.formatSubDates('%Y-%m-%d %H:%M:%S %Z')
 crowdWed.assignDueDate(wednDate)
+crowdWed.conditionalNewDueDate(lambda m, e: m[crowdWed.strID] == e["User ID"] + '@uwaterloo.ca', extData, '+72 hours', '%Y-%m-%d %H:%M')
 crowdWed.applyLatePenalty(0.8, 0, 24)
 crowdWed.applyLatePenalty(0.6, 24, 48)
 crowdWed.applyLatePenalty(0, 48)
