@@ -34,6 +34,9 @@ class GradeFile:
         self.duedate = dict_of_headers["duedate"]
 
         if self.data:
+            if self.id is None:
+                raise KeyError("must include id column")
+
             if self.id is not None and self.id not in self.data[0].keys():
                 raise KeyError("id column not found")
 
@@ -45,6 +48,8 @@ class GradeFile:
 
             if self.duedate is not None and self.duedate not in self.data[0].keys():
                 raise KeyError("duedate column not found")
+        self.duedateformatted = False
+        self.subdateformatted = False
 
     def combine_with(self, other):
         if type(other) is not GradeFile:
@@ -57,12 +62,18 @@ class GradeFile:
             raise TypeError("Parameter must have same defined headers")
         elif self.duedate != other.duedate:
             raise TypeError("Parameter must have same defined headers")
+        elif self.duedateformatted != other.duedateformatted:
+            raise TypeError("Inconsistent duedate formatting")
+        elif self.subdateformatted != other.subdateformatted:
+            raise TypeError("inconsistent subdate formatting")
         else:
             combined = GradeFile({"id": self.id,
                                   "grade": self.grade,
                                   "subdate": self.subdate,
                                   "duedate": self.duedate})
             combined.data = self.data + other.data
+            combined.duedateformatted = self.duedateformatted
+            combined.subdateformatted = self.subdateformatted
             return combined
 
     def assign_due_date(self, due_datetime):
@@ -70,9 +81,13 @@ class GradeFile:
             self.duedate = 'duedate'
         for row in self.data:
             row[self.duedate] = due_datetime
+        self.duedateformatted = True
 
     def format_duedates_from_string(self, old_format):
-        if self.duedate not in self.data[0].keys():
+        if self.duedateformatted:
+            raise TypeError("already formatted due dates")
+
+        if self.duedate is None or self.duedate not in self.data[0].keys():
             raise KeyError("Due date column not recognized, review initialization")
 
         for row in self.data:
@@ -82,9 +97,13 @@ class GradeFile:
                 new_date = datetime.strptime(row[self.duedate], old_format)
                 new_date = new_date.replace(tzinfo=timezone.utc)
                 row[self.duedate] = new_date
+        self.duedateformatted = True
 
     def format_subdates_from_string(self, old_format):
-        if self.subdate not in self.data[0].keys():
+        if self.subdateformatted:
+            raise TypeError("already formatted sub dates")
+
+        if self.subdate is None or self.subdate not in self.data[0].keys():
             raise KeyError("Due date column not recognized, review initialization")
 
         for row in self.data:
@@ -94,9 +113,13 @@ class GradeFile:
                 new_date = datetime.strptime(row[self.subdate], old_format)
                 new_date = new_date.replace(tzinfo=timezone.utc)
                 row[self.subdate] = new_date
+        self.subdateformatted = True
 
     def format_duedates_from_timestamp(self):
-        if self.duedate not in self.data[0].keys():
+        if self.duedateformatted:
+            raise TypeError("already formatted due dates")
+
+        if self.duedate is None or self.duedate not in self.data[0].keys():
             raise KeyError("Due date column not recognized, review initialization")
 
         try:
@@ -115,9 +138,13 @@ class GradeFile:
                     new_date = datetime.fromtimestamp(int(row[self.duedate]) / 1000,
                                                       tz=timezone.utc)
                     row[self.duedate] = new_date
+        self.duedateformatted = True
 
     def format_subdates_from_timestamp(self):
-        if self.subdate not in self.data[0].keys():
+        if self.subdateformatted:
+            raise TypeError("already formatted sub dates")
+
+        if self.subdate is None or self.subdate not in self.data[0].keys():
             raise KeyError("Due date column not recognized, review initialization")
 
         try:
@@ -136,6 +163,7 @@ class GradeFile:
                     new_date = datetime.fromtimestamp(int(row[self.subdate]) / 1000,
                                                       tz=timezone.utc)
                     row[self.subdate] = new_date
+        self.subdateformatted = True
 
     def format_id_trim(self, delimiter, index):
         for row in self.data:
@@ -146,6 +174,12 @@ class GradeFile:
             row[self.id] = string_before + row[self.id] + string_after
 
     def conditional_extension(self, other, condition, extension_hours):
+        if not self.duedate:
+            raise RuntimeError("no due date defined previously")
+
+        if not self.duedateformatted:
+            raise ValueError("due date not formatted")
+
         extension_length = timedelta(hours=int(extension_hours))
         for row in self.data:
             for other_row in other.data:
@@ -154,6 +188,9 @@ class GradeFile:
                     row[self.duedate] = new_date
 
     def new_due_date_from(self, other):
+        if not self.duedateformatted or not other.duedateformatted:
+            raise ValueError("due date not formatted")
+
         for row in self.data:
             for other_row in other.data:
                 if row[self.id] == other_row[other.id]:
@@ -161,6 +198,9 @@ class GradeFile:
                     print("extension given to " + row[self.id])
 
     def apply_late_penalty(self, multiplier, min_hrs_late=0, max_hrs_late=1000):
+        if not self.duedateformatted or not self.subdateformatted:
+            raise ValueError("not all dates formatted")
+
         for row in self.data:
             if row[self.subdate]:
                 row[self.grade] = float(row[self.grade])
@@ -172,6 +212,9 @@ class GradeFile:
                     row[self.grade] = float(row[self.grade]) * multiplier
 
     def take_highest_grade(self):
+        if not self.grade:
+            raise RuntimeError("missing grade column, review initialization")
+
         for row in self.data:
             if row[self.id] != 'remove_flag':
                 high_index = 0
@@ -189,6 +232,9 @@ class GradeFile:
         self.data = list(filter(lambda line: line[self.id] != 'remove_flag', self.data))
 
     def add_to_grade_import(self, destination):
+        if not self.grade or not destination.grade:
+            raise RuntimeError("missing one or more grade column, review initialization")
+
         for row in self.data:
             for dest_row in destination.data:
                 if row[self.grade] and row[self.id] == dest_row[destination.id]:
