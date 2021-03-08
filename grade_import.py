@@ -1,20 +1,7 @@
-# IMPORTANT NOTE: don't edit any input files, excel reformats strings of integer dates to scientific
-"""NOTES:
-dogfood whole process
-    reduce code outside class
-    UNIX philosophy
-    overall documentation/overview
-    python and markdown file
-    document external files (extensions/learn)
-"""
-
 import json
 import csv
+import sys
 from datetime import datetime, timedelta, timezone
-
-configFile = open('config.json', 'r')
-config = json.load(configFile)
-configFile.close()
 
 
 class GradeFile:
@@ -77,13 +64,18 @@ class GradeFile:
             return combined
 
     def assign_due_date(self, due_datetime):
+        if due_datetime.tzinfo is None:
+            raise TypeError("due_datetime must contain timezone information")
+
         if self.duedate is None:
             self.duedate = 'duedate'
+
         for row in self.data:
             row[self.duedate] = due_datetime
+
         self.duedateformatted = True
 
-    def format_duedates_from_string(self, old_format):
+    def format_duedates_from_string(self, src_format, src_timezone):
         if self.duedateformatted:
             raise TypeError("already formatted due dates")
 
@@ -91,15 +83,20 @@ class GradeFile:
             raise KeyError("Due date column not recognized, review initialization")
 
         for row in self.data:
-            if type(row[self.duedate]) is not str:
-                raise TypeError("Date already formatted")
-            if row[self.duedate]:
-                new_date = datetime.strptime(row[self.duedate], old_format)
-                new_date = new_date.replace(tzinfo=timezone.utc)
+            if row[self.duedate] and row[self.duedate] != '#N/A':
+                # reads datetime from string
+                new_date = datetime.strptime(row[self.duedate], src_format)
+                # confirms that timezone is attached
+                if new_date.tzinfo is None:
+                    new_date = new_date.replace(tzinfo=src_timezone)
+                # if timezone is not UTC then convert to UTC
+                if new_date.tzinfo != timezone.utc:
+                    new_date = new_date.astimezone(tz=timezone.utc)
                 row[self.duedate] = new_date
+
         self.duedateformatted = True
 
-    def format_subdates_from_string(self, old_format):
+    def format_subdates_from_string(self, src_format, src_timezone):
         if self.subdateformatted:
             raise TypeError("already formatted sub dates")
 
@@ -107,15 +104,20 @@ class GradeFile:
             raise KeyError("Due date column not recognized, review initialization")
 
         for row in self.data:
-            if type(row[self.subdate]) is not str:
-                raise TypeError("Date already formatted")
             if row[self.subdate]:
-                new_date = datetime.strptime(row[self.subdate], old_format)
-                new_date = new_date.replace(tzinfo=timezone.utc)
+                # reads datetime from string
+                new_date = datetime.strptime(row[self.subdate], src_format)
+                # confirms that timezone is attached
+                if new_date.tzinfo is None:
+                    new_date = new_date.replace(tzinfo=src_timezone)
+                # if timezone is not UTC then convert to UTC
+                if new_date.tzinfo != timezone.utc:
+                    new_date = new_date.astimezone(tz=timezone.utc)
                 row[self.subdate] = new_date
+
         self.subdateformatted = True
 
-    def format_duedates_from_timestamp(self):
+    def format_duedates_from_timestamp(self, src_timezone):
         if self.duedateformatted:
             raise TypeError("already formatted due dates")
 
@@ -124,23 +126,28 @@ class GradeFile:
 
         try:
             for row in self.data:
-                if type(row[self.duedate]) is not str:
-                    raise TypeError("Date already formatted")
                 if row[self.duedate]:
+                    # reads date from string, assigns timezone
                     new_date = datetime.fromtimestamp(int(row[self.duedate]),
-                                                      tz=timezone.utc)
+                                                      tz=src_timezone)
+                    # if timezone is not UTC then convert to UTC
+                    if new_date.tzinfo != timezone.utc:
+                        new_date = new_date.astimezone(tz=timezone.utc)
                     row[self.duedate] = new_date
         except OSError:
             for row in self.data:
-                if type(row[self.duedate]) is not str:
-                    raise TypeError("Date already formatted")
                 if row[self.duedate]:
+                    # reads date from string, assigns timezone
                     new_date = datetime.fromtimestamp(int(row[self.duedate]) / 1000,
-                                                      tz=timezone.utc)
+                                                      tz=src_timezone)
+                    # if timezone is not UTC then convert to UTC
+                    if new_date.tzinfo != timezone.utc:
+                        new_date = new_date.astimezone(tz=timezone.utc)
                     row[self.duedate] = new_date
+
         self.duedateformatted = True
 
-    def format_subdates_from_timestamp(self):
+    def format_subdates_from_timestamp(self, src_timezone):
         if self.subdateformatted:
             raise TypeError("already formatted sub dates")
 
@@ -149,20 +156,25 @@ class GradeFile:
 
         try:
             for row in self.data:
-                if type(row[self.subdate]) is not str:
-                    raise TypeError("Date already formatted")
                 if row[self.subdate]:
+                    # reads date from string, assigns timezone
                     new_date = datetime.fromtimestamp(int(row[self.subdate]),
-                                                      tz=timezone.utc)
+                                                      tz=src_timezone)
+                    # if timezone is not UTC then convert to UTC
+                    if new_date.tzinfo != timezone.utc:
+                        new_date = new_date.astimezone(tz=timezone.utc)
                     row[self.subdate] = new_date
         except OSError:
             for row in self.data:
-                if type(row[self.subdate]) is not str:
-                    raise TypeError("Date already formatted")
                 if row[self.subdate]:
+                    # reads date from string, assigns timezone
                     new_date = datetime.fromtimestamp(int(row[self.subdate]) / 1000,
                                                       tz=timezone.utc)
+                    # if timezone is not UTC then convert to UTC
+                    if new_date.tzinfo != timezone.utc:
+                        new_date = new_date.astimezone(tz=timezone.utc)
                     row[self.subdate] = new_date
+
         self.subdateformatted = True
 
     def format_id_trim(self, delimiter, index):
@@ -202,14 +214,16 @@ class GradeFile:
             raise ValueError("not all dates formatted")
 
         for row in self.data:
-            if row[self.subdate]:
-                row[self.grade] = float(row[self.grade])
+            if row[self.subdate] and row[self.duedate]:
                 delta = row[self.subdate] - row[self.duedate]
+                if type(row[self.grade]) is not float:
+                    row[self.grade] = float(row[self.grade])
                 if timedelta(hours=min_hrs_late) < delta <= timedelta(hours=max_hrs_late):
-                    print('penalty applied to ' + row[self.id] + ": " + str(delta)
-                          + ' hours late ' + str(float(row[self.grade]))
-                          + "-->" + str(float(row[self.grade]) * multiplier))
-                    row[self.grade] = float(row[self.grade]) * multiplier
+                    newgrade = row[self.grade] * multiplier
+                    print('penalty applied to', row[self.id], ':', str(delta),
+                          'hours late', row[self.grade],
+                          '-->', newgrade, sep=' ')
+                    row[self.grade] = newgrade
 
     def take_highest_grade(self):
         if not self.grade:
@@ -229,6 +243,7 @@ class GradeFile:
                 for index in all_index:
                     if index != high_index:
                         self.data[index][self.id] = 'remove_flag'
+
         self.data = list(filter(lambda line: line[self.id] != 'remove_flag', self.data))
 
     def add_to_grade_import(self, destination):
@@ -251,11 +266,18 @@ class GradeFile:
             writer.writerows(self.data)
 
 
+reportfile = "report " + datetime.now().strftime('%Y-%m-%d_%H-%M') + ".txt"
+sys.stdout = open(reportfile, 'w')
+
+configFile = open('config.json', 'r')
+config = json.load(configFile)
+configFile.close()
+
 tues_due_date = datetime.strptime(config["tues_date"], '%Y-%m-%d %H:%M:%S %z')
 wedn_due_date = datetime.strptime(config["wedn_date"], '%Y-%m-%d %H:%M:%S %z')
 
 extensions = GradeFile(config["exten"], config["extensions_file"])
-extensions.format_duedates_from_string('%Y-%m-%d %H:%M')
+extensions.format_duedates_from_string('%Y-%m-%d %H:%M', timezone(-timedelta(hours=5)))
 
 learn_expo = GradeFile(config["learn"], config["learn_export_file"])
 learn_expo.format_id_trim('#', 1)
@@ -264,7 +286,7 @@ print("\nMARMOSET REPORT: ")
 marm_tues = GradeFile(config["marm"], config["marmoset_tues_file"])
 marm_wedn = GradeFile(config["marm"], config["marmoset_wed_file"])
 marm_data = marm_tues.combine_with(marm_wedn)
-marm_data.format_subdates_from_timestamp()
+marm_data.format_subdates_from_timestamp(timezone.utc)
 marm_data.assign_due_date(tues_due_date)
 marm_data.conditional_extension(learn_expo, lambda m_row, l_row:
                                 l_row["ME101_chulls_pmteerts_1211_LAB"] == "241 Wednesday Lab", 24)
@@ -281,7 +303,7 @@ crowd_tues.assign_due_date(tues_due_date)
 crowd_wedn = GradeFile(config["crowd"], config["crowdmark_wed_file"])
 crowd_wedn.assign_due_date(wedn_due_date)
 crowd_data = crowd_tues.combine_with(crowd_wedn)
-crowd_data.format_subdates_from_string('%Y-%m-%d %H:%M:%S %Z')
+crowd_data.format_subdates_from_string('%Y-%m-%d %H:%M:%S %Z', timezone.utc)
 crowd_data.format_id_trim('@', 0)
 crowd_data.new_due_date_from(extensions)
 crowd_data.apply_late_penalty(0.8, 0, 24)
@@ -290,14 +312,15 @@ crowd_data.apply_late_penalty(0, 48)
 crowd_data.add_to_grade_import(learn_expo)
 
 learn_expo.format_id_add('#', '')
-learn_expo.print_to_csv(config["output_file"])
+outputfile = config["output_file"] + " " + datetime.now().strftime('%Y-%m-%d_%H-%M') + ".csv"
+learn_expo.print_to_csv(outputfile)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~TEST CASE 1~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 with open("A1_grade_import_BASELINE.csv", newline='') as csvFile:
     new_reader = csv.DictReader(csvFile)
     baseline = list(new_reader)
 
-with open(config["output_file"], newline='') as csvFile:
+with open(outputfile, newline='') as csvFile:
     new_reader = csv.DictReader(csvFile)
     current = list(new_reader)
 
@@ -311,3 +334,5 @@ else:
                   + base[config["learn"]["id"]])
             print("   current is " + curr[config["learn"]["grade"]] + " vs "
                   + base[config["learn"]["grade"]])
+
+sys.stdout.close()
