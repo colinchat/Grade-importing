@@ -1,6 +1,6 @@
 {
 	
-	"output_file" : "A1_grade_import.csv",
+	"output_file" : "A1_grade_import",
 	"marmoset_tues_file" : "project-Assignment 1 - Tuesday lab-grades.csv",
 	"marmoset_wed_file" : "project-Assignment 1 - Wednesday lab-grades.csv",
 	"crowdmark_tues_file" : "a1_prog_tue_lab-marks.csv",
