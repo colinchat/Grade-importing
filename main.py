@@ -2,7 +2,6 @@ import json
 import sys
 from datetime import datetime, timedelta, timezone
 from grade_file import GradeFile
-from test_cases import areequal
 
 
 reportfile = "report " + datetime.now().strftime('%Y-%m-%d %H.%M.%S') + ".txt"
@@ -53,7 +52,5 @@ crowd_data.add_to_grade_import(learn_expo)
 learn_expo.format_id_add('#', '')
 outputfile = config["output_file"] + " " + datetime.now().strftime('%Y-%m-%d %H.%M.%S') + ".csv"
 learn_expo.print_to_csv(outputfile)
-
-areequal("A1_grade_import_BASELINE.csv", outputfile)
 
 sys.stdout.close()
