@@ -32,6 +32,6 @@
 		"id" : "User ID",
 		"grade" : null,
 		"subdate" : null,
-		"duedate" : "+72 hours"
+		"duedate" : "new due date (+72)"
 	}
 }
