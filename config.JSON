@@ -9,6 +9,8 @@
 	"learn_export_file" : "ME 101 - Winter 2021_GradesExport.csv",
 	"tues_date" : "2021-1-13 21:30:59 +0000",
 	"wedn_date" : "2021-1-14 21:30:59 +0000",
+	"marm_total" : 5,
+	"crowd_total" : 8,
 
 	"marm": {
 		"id" : "classAccount",

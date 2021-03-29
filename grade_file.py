@@ -207,7 +207,7 @@ class GradeFile:
                     row[self.duedate] = other_row[other.duedate]
                     print("extension given to " + row[self.id])
 
-    def apply_late_penalty(self, multiplier, min_hrs_late=0, max_hrs_late=1000):
+    def apply_late_penalty(self, subtraction, min_hrs_late=0, max_hrs_late=1000):
         if not self.duedateformatted or not self.subdateformatted:
             raise ValueError("not all dates formatted")
 
@@ -217,7 +217,7 @@ class GradeFile:
                 if type(row[self.grade]) is not float:
                     row[self.grade] = float(row[self.grade])
                 if timedelta(hours=min_hrs_late) < delta <= timedelta(hours=max_hrs_late):
-                    newgrade = row[self.grade] * multiplier
+                    newgrade = max(row[self.grade] - subtraction, 0)
                     output = 'penalty applied to {o1}: {o2} hrs late {o3: .2f} --> {o4: .2f}'
                     print(output.format(o1=row[self.id], o2=delta,
                                         o3=row[self.grade], o4=newgrade))
