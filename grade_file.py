@@ -207,7 +207,7 @@ class GradeFile:
                     row[self.duedate] = other_row[other.duedate]
                     print("extension given to " + row[self.id])
 
-    def apply_late_penalty(self, subtraction, min_hrs_late=0, max_hrs_late=1000):
+    def apply_late_penalty(self, subtraction, min_hrs_late=0, max_hrs_late=1e7):
         if not self.duedateformatted or not self.subdateformatted:
             raise ValueError("not all dates formatted")
 

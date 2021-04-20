@@ -17,7 +17,7 @@ Built around the GradeFile class. GradeFile objects are any sort of csv containi
 	* 6 csv files in total (if 2 sections in both marmoset and crowdmark are used)
 3. check all values in config.JSON are correct
 	* all file names must be updated (or file names updated to match config)
-	* tuesday and wednesday dates must be updated
+	* tuesday and wednesday dates must be updated (ALWAYS IN UTC TIME)
 	* csv file "headers" should be checked. These are essentially the columns containing information we want. Marmoset/crowdmark headers likely won't change. Extension headers may change if you change the format of the spreadsheet. Learn grade header will change every assignment. 
 4. open command line, change directory to folder, run main.py
 5. Read any error messages that come up, if there is none then two files should have been created: a new ouput file (.csv, the one to be imported to learn) and a report file (.txt). 
