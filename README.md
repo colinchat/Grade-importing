@@ -11,7 +11,7 @@ Built around the GradeFile class. GradeFile objects are any sort of csv containi
 2. do operations on the data sets as necessary
 3. combine data into a Learn export and print it to a csv file
 
-#Detailed tutorial (based on combining marmoset and crowdmark grade for ME101 during Winter 2021):
+## Detailed tutorial (based on combining marmoset and crowdmark grade for ME101 during Winter 2021):
 1. download main.py, grade_file.py, and config.JSON into a new folder
 2. download all necessary excel files, ensure they are converted to comma delimeted .csv files (refer to notes on specific programs below)
 	* 6 csv files in total (if 2 sections in both marmoset and crowdmark are used)
